@@ -43,7 +43,9 @@ npm run dev
 ```
 
 ## Agenta Tracing
+
 Open [cloud.agenta.ai](https://cloud.agenta.ai) → Observability → All to see live traces of every LLM call.
 
 ## Author
+
 Built by [@unfitcoder101](https://github.com/unfitcoder101) as part of the official Agenta examples.
