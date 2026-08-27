@@ -3,11 +3,11 @@
 A streaming RAG (Retrieval-Augmented Generation) chatbot built with Vercel AI SDK, Next.js, and Groq — with every LLM call traced in [Agenta](https://agenta.ai).
 
 ## Live Demo
-🔗 [agenta-ai-examples.vercel.app](https://agenta-ai-examples.vercel.app)
+🔗 [agenta-ai-examples.vercel.app](https://agenta-ai-examples.vercel.app)                 
 
-## What it does
+## What it does               
 - Upload any PDF (under 4MB)
-- Ask questions about it
+- Ask questions about it                  
 - Get streaming AI answers based on document content
 - Every LLM call is observable in Agenta's dashboard
 
