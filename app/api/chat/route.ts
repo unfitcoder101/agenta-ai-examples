@@ -1,56 +1,51 @@
-import { createGroq } from "@ai-sdk/groq";
-import { streamText } from "ai";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { MemoryVectorStore } from "@langchain/classic/vectorstores/memory";
+import { RunnableSequence, RunnablePassthrough } from "@langchain/core/runnables";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { ChatGroq } from "@langchain/groq";
+import type { Document } from "@langchain/core/documents";
+import { GroqEmbeddings } from "@/lib/groq-embeddings";
+import { AgentaTracingHandler } from "@/lib/agenta-callback-handler";
 
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY?.trim() });
+const embeddings = new GroqEmbeddings({
+  apiKey: process.env.GROQ_API_KEY!,
+});
 
-function retrieveChunks(query: string, text: string, topK = 3): string[] {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += 500) chunks.push(text.slice(i, i + 500));
-  const words = query.toLowerCase().split(" ");
-  return chunks
-    .map((chunk) => ({ chunk, score: words.filter((w) => chunk.toLowerCase().includes(w)).length }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK)
-    .map((r) => r.chunk);
+async function buildRetriever(rawText: string) {
+  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 150 });
+  const docs = await splitter.createDocuments([rawText]);
+  const vectorstore = await MemoryVectorStore.fromDocuments(docs, embeddings);
+  return vectorstore.asRetriever({ k: 4 });
 }
 
-function convertMessages(messages: any[]) {
-  return messages.map((m) => ({
-    role: m.role,
-    content: typeof m.content === "string"
-      ? m.content
-      : Array.isArray(m.parts)
-        ? m.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join(" ")
-        : "",
-  }));
-}
+const formatDocs = (docs: Document[]) =>
+  docs.map((d, i) => `[${i + 1}] ${d.pageContent}`).join("\n\n");
 
-export const maxDuration = 30;
+const prompt = ChatPromptTemplate.fromTemplate(
+  `Answer the question using only the context below. Cite sources like [1].
+Context:
+{context}
+
+Question: {question}`
+);
+
+const model = new ChatGroq({ model: "openai/gpt-oss-120b", temperature: 0.2 });
+
+async function askQuestion(retriever: Awaited<ReturnType<typeof buildRetriever>>, question: string) {
+  const chain = RunnableSequence.from([
+    { context: retriever.pipe(formatDocs), question: new RunnablePassthrough() },
+    prompt,
+    model,
+    new StringOutputParser(),
+  ]);
+  const handler = new AgentaTracingHandler();
+  return chain.invoke(question, { callbacks: [handler] });
+}
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  console.log("FULL BODY KEYS:", Object.keys(body));
-  console.log("pdfContext length:", body.pdfContext?.length ?? "NOT PRESENT");
-  
-  const rawMessages = body.messages ?? [];
-  const pdfContext = body.pdfContext ?? "";
-
-  const lastMessage = rawMessages[rawMessages.length - 1];
-  let query = "";
-  if (typeof lastMessage?.content === "string") query = lastMessage.content;
-  else if (Array.isArray(lastMessage?.parts)) {
-    query = lastMessage.parts.filter((p: any) => p.type === "text").map((p: any) => p.text).join(" ");
-  }
-
-  const context = pdfContext
-    ? `Context from document:\n${retrieveChunks(query, pdfContext).join("\n\n")}`
-    : "No document uploaded yet.";
-
-  const result = streamText({
-    model: groq("llama-3.3-70b-versatile"),
-    system: `You are a helpful assistant. Answer based on the context below.\n\n${context}`,
-    messages: convertMessages(rawMessages),
-  });
-
-  return result.toUIMessageStreamResponse();
+  const { question, documentText } = await req.json();
+  const retriever = await buildRetriever(documentText);
+  const answer = await askQuestion(retriever, question);
+  return Response.json({ answer });
 }
