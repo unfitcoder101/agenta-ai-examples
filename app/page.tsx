@@ -58,7 +58,7 @@ export default function Chat() {
         {messages.map(message => (
           <div key={message.id} className={`p-3 rounded-lg ${message.role === 'user' ? 'bg-blue-50 ml-8' : 'bg-gray-50 mr-8'}`}>
             <span className="text-xs font-semibold text-gray-400 uppercase">{message.role === 'user' ? 'You' : 'AI'}</span>
-            <p className="mt-1 text-sm">
+            <p className="mt-1 text-sm text-gray-900">
               {message.parts?.map((part: any, i: number) =>
                 part.type === 'text' ? <span key={i}>{part.text}</span> : null
               )}
@@ -70,7 +70,7 @@ export default function Chat() {
 
       <div className="fixed bottom-0 w-full max-w-2xl mb-8 flex gap-2">
         <input
-          className="flex-1 p-3 border border-gray-300 rounded-lg shadow text-black text-sm"
+          className="flex-1 p-3 border border-gray-300 rounded-lg shadow bg-white text-black text-sm"
           value={input}
           placeholder="Ask something about your PDF..."
           onChange={(e) => setInput(e.target.value)}
