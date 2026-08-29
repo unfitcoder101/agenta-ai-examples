@@ -5,12 +5,10 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatGroq } from "@langchain/groq";
 import type { Document } from "@langchain/core/documents";
-import { GroqEmbeddings } from "@/lib/groq-embeddings";
+import { createEmbeddings } from "@/lib/groq-embeddings";
 import { AgentaTracingHandler } from "@/lib/agenta-callback-handler";
 
-const embeddings = new GroqEmbeddings({
-  apiKey: process.env.GROQ_API_KEY!,
-});
+const embeddings = createEmbeddings();
 
 async function buildRetriever(rawText: string) {
   const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 150 });
