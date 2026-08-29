@@ -1,18 +1,16 @@
 'use client';
 
-import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
 import { useState, useRef } from 'react';
+
+type Message = { id: string; role: 'user' | 'ai'; text: string };
 
 export default function Chat() {
   const pdfContextRef = useRef('');
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
-  const isLoading = status === 'streaming' || status === 'submitted';
+  const [isLoading, setIsLoading] = useState(false);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -34,13 +32,25 @@ export default function Chat() {
     }
   }
 
-  function send() {
+  async function send() {
     if (!input.trim() || isLoading) return;
-    sendMessage(
-      { text: input },
-      { body: { pdfContext: pdfContextRef.current } }
-    );
+    const question = input;
     setInput('');
+    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', text: question }]);
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, documentText: pdfContextRef.current }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'ai', text: data.answer ?? data.error ?? 'No response' }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'ai', text: `❌ ${err}` }]);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -58,11 +68,7 @@ export default function Chat() {
         {messages.map(message => (
           <div key={message.id} className={`p-3 rounded-lg ${message.role === 'user' ? 'bg-blue-50 ml-8' : 'bg-gray-50 mr-8'}`}>
             <span className="text-xs font-semibold text-gray-400 uppercase">{message.role === 'user' ? 'You' : 'AI'}</span>
-            <p className="mt-1 text-sm text-gray-900">
-              {message.parts?.map((part: any, i: number) =>
-                part.type === 'text' ? <span key={i}>{part.text}</span> : null
-              )}
-            </p>
+            <p className="mt-1 text-sm text-gray-900">{message.text}</p>
           </div>
         ))}
         {isLoading && <p className="text-xs text-gray-400 ml-2">Thinking...</p>}
